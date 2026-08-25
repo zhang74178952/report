@@ -1,9 +1,8 @@
 {
   "brand": "Garden of Life",
   "brand_slug": "garden-of-life",
-  "report_date": "2026-08-10",
-  "source_sha256": "e4793ab9132da87510415295393c0d0f3ddbb8744102098bd879270b1f80f622",
-  "generated_at": "2026-08-14T14:32:50+08:00",
-  "root_path": "garden-of-life/index.html",
-  "version_path": "garden-of-life/versions/2026-08-10/index.html"
+  "report_date": "2026-08-24",
+  "source_hash": "09907171d1ab3183b3170d6e9bf6d3e3e5e67e16cb55f313c92ba3442a030d6d",
+  "built_at": "2026-08-25T17:17:48+08:00",
+  "version_path": "versions/2026-08-24/"
 }
