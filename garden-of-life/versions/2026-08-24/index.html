@@ -154,14 +154,16 @@
     .mean-high{display:block;color:#e5455b;background:#fff0f2;border-radius:5px;padding:3px 1px;font-weight:800}.mean-low{display:block;color:#079b61;background:#eafaf3;border-radius:5px;padding:3px 1px;font-weight:800}.mean-neutral{display:block;color:#6f7f92;padding:3px 1px}
     .rank-meta{display:block;margin-top:2px;color:#596b80;font-size:.8em}.rank-up{color:#e64b5f}.rank-down{color:#11a66a}.rank-flat{color:#718198}
     .ranking-table th:first-child,.ranking-table td:first-child{width:190px;text-align:center}.ranking-table th,.ranking-table td{text-align:center}.keyword-product{display:block;color:#0754bd;font-size:.9em;margin-bottom:3px}.keyword-name{display:block;text-align:center}
-    .metric-with-yoy{position:relative;display:block;min-height:30px;padding:2px 2px 12px;font-weight:750}.metric-with-yoy small{position:absolute;right:1px;bottom:0;font-size:.72em;font-weight:800}
+    .metric-with-yoy{display:block;font-weight:750;line-height:1.25}.metric-with-yoy small{position:static;display:block;margin-top:3px;text-align:right;white-space:nowrap;font-size:.72em;font-weight:800}
     .yoy-missing{color:#c58b00!important}
     .keyword-summary-table th:first-child,.keyword-summary-table td:first-child{width:78px}.keyword-summary-table td{font-size:1.05em}
     .traffic-combo-table .traffic-data-row td{font-size:clamp(11px,.7vw,16px);font-weight:800}.traffic-combo-table .traffic-trend-row td{padding:1px 4px 5px;background:#f8fbff}
     .traffic-combo-table .channel-cell{font-size:clamp(13px,.86vw,19px)!important;text-align:center!important;vertical-align:middle;background:#eef7ff!important;color:#124d9a}
-    .traffic-combo-table svg{display:block;width:100%;height:42px;overflow:visible}
+    .traffic-combo-table svg{display:block;width:100%;height:24px;overflow:visible}
     .rank-value-cell{position:relative;display:block;min-height:38px;padding:4px 4px 15px;font-size:1.08em;font-weight:850}.rank-value-cell small{position:absolute;right:2px;bottom:1px;font-size:.72em;font-weight:750;background:transparent;padding:0;color:#7a8796!important}.rank-improved{color:#e5455b}.rank-declined{color:#079b61}.rank-same{color:#7a8796}
-    .layout-keywords .dashboard-table td,.layout-keywords .dashboard-table th{text-align:center;padding:clamp(10px,.72vw,16px) 8px;font-size:clamp(12px,.72vw,16px)}.layout-keywords .dashboard-table td:first-child{text-align:center}.layout-keywords .keyword-top-grid{align-items:stretch;grid-template-columns:1fr}
+    .layout-keywords .dashboard-table td,.layout-keywords .dashboard-table th{text-align:center;padding:8px 4px;font-size:clamp(9px,.52vw,12px)}.layout-keywords .dashboard-table td:first-child{text-align:center;white-space:normal;overflow-wrap:anywhere}.layout-keywords .keyword-top-grid{align-items:stretch;grid-template-columns:repeat(3,minmax(0,1fr))}
+    .layout-keywords .keyword-top-grid .dashboard-table th:first-child,.layout-keywords .keyword-top-grid .dashboard-table td:first-child{width:42%}
+    .layout-traffic .up,.layout-keywords .up{color:var(--red)!important;font-weight:800}.layout-traffic .down,.layout-keywords .down{color:var(--green)!important;font-weight:800}.layout-traffic .neutral,.layout-keywords .neutral{color:var(--muted)!important}
     .layout-price .dashboard-scroll,.layout-keywords .dashboard-scroll{height:100%;display:flex}.layout-price .dashboard-table,.layout-keywords .dashboard-table{height:100%}
     .layout-price .dashboard-table td,.layout-price .dashboard-table th{font-size:clamp(10px,.68vw,15px);padding:clamp(7px,.6vw,14px) 4px}
     .layout-keywords #keywordOverview,.layout-keywords #keywordTopGrid{width:100%}.layout-keywords .keyword-top-grid>div{display:flex;flex-direction:column}.layout-keywords .keyword-top-grid .dashboard-scroll{flex:1}
@@ -1053,7 +1055,7 @@
         const vals = dates.map(d => rows.filter(r=>r.channel===channel && r.date===d).reduce((s,r)=>s+(r.uv||0),0));
         const curRows=rows.filter(r=>r.channel===channel&&r.date===latest), cur=vals.at(-1)||0, prev=rows.filter(r=>r.channel===channel&&r.date===previous).reduce((s,r)=>s+(r.uv||0),0);
         const prior=curRows.reduce((s,r)=>{const y=r.uv_yoy;return s+(Number.isFinite(y)&&y>-1?r.uv/(1+y):0)},0);
-        const width=760,height=42,left=12,right=12,top=5,bottom=5,max=Math.max(1,...vals),step=(width-left-right)/Math.max(1,vals.length-1),points=vals.map((v,i)=>({x:left+i*step,y:top+(max-v)/max*(height-top-bottom),v,i}));
+        const width=760,height=24,left=12,right=12,top=3,bottom=3,max=Math.max(1,...vals),step=(width-left-right)/Math.max(1,vals.length-1),points=vals.map((v,i)=>({x:left+i*step,y:top+(max-v)/max*(height-top-bottom),v,i}));
         const polyline=points.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
         const marks=points.map(p=>{const abnormal=p.i>0&&isDailyAnomaly(p.v,vals[p.i-1]),color=abnormal?(p.v>vals[p.i-1]?'#e5455b':'#079b61'):'#075fe4';return '<circle cx="'+p.x+'" cy="'+p.y+'" r="4" fill="'+color+'"/>';}).join(''),dataCells=vals.map((v,i)=>'<td>'+marked(num(v),i>0&&isDailyAnomaly(v,vals[i-1]),v,vals[i-1])+'</td>').join('');
         return '<tr class="traffic-data-row"><td class="channel-cell" rowspan="2"><b>'+esc(channel)+'</b></td>'+dataCells+'<td>'+coloredChange(yoyValue(cur,prev))+'</td><td>'+coloredChange(yoyValue(cur,prior))+'</td></tr><tr class="traffic-trend-row"><td colspan="'+(dates.length+2)+'"><svg viewBox="0 0 '+width+' '+height+'" role="img" aria-label="'+esc(channel)+' 最近15日UV趋势"><polyline points="'+polyline+'" fill="none" stroke="#1684e8" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>'+marks+'</svg></td></tr>';
