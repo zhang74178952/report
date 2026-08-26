@@ -139,14 +139,16 @@
     .dashboard-subtitle{margin:-7px 0 13px 34px;color:#667085;font-size:12px}
     .data-block{margin-top:14px;border:1px solid #dce9f7;border-radius:11px;background:#fbfdff;overflow:hidden}
     .data-block h3{margin:0;padding:10px 13px;color:#075fe4;background:#eaf4ff;border-bottom:1px solid #d3e7fb;font-size:14px}
-    .table-scroll{width:100%;overflow-x:auto}
-    .dashboard-table{width:100%;min-width:760px;border-collapse:separate;border-spacing:0;font-size:12px;color:#314a63}
-    .dashboard-table th{position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#0878e9,#0754bd);color:#fff;padding:8px 9px;white-space:nowrap;text-align:right}
-    .dashboard-table th:first-child,.dashboard-table td:first-child{position:sticky;left:0;z-index:3;text-align:left;background:#f7fbff;font-weight:700;min-width:126px}
+    .table-scroll,.dashboard-scroll{width:100%;overflow:visible}
+    .dashboard-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:10px;color:#314a63}
+    .dashboard-table th{background:linear-gradient(180deg,#0878e9,#0754bd);color:#fff;padding:7px 4px;white-space:normal;text-align:center;overflow-wrap:anywhere}
+    .dashboard-table th:first-child,.dashboard-table td:first-child{text-align:left;background:#f7fbff;font-weight:700;width:132px}
     .dashboard-table th:first-child{background:linear-gradient(180deg,#0878e9,#0754bd)}
-    .dashboard-table td{padding:8px 9px;border-bottom:1px solid #e7eef7;text-align:right;white-space:nowrap;background:#fff}
+    .dashboard-table td{padding:7px 4px;border-bottom:1px solid #e7eef7;text-align:center;white-space:normal;background:#fff;overflow-wrap:anywhere;vertical-align:middle}
     .dashboard-table tbody tr:nth-child(even) td{background:#f8fbff}.dashboard-table tbody tr:nth-child(even) td:first-child{background:#f2f8ff}
     .delta.up{color:var(--red);font-weight:700}.delta.down{color:var(--green);font-weight:700}.delta.neutral{color:var(--muted)}
+    .anomaly-cell{display:block;margin:-4px;padding:4px 2px;border:1px solid #ff9b5f;border-radius:5px;background:#fff0e6;color:#a74400;font-weight:800}.anomaly-cell::after{content:' ⚠';font-size:9px}
+    .rank-meta{display:block;margin-top:2px;color:#596b80;font-size:9px}.rank-up{color:#e64b5f}.rank-down{color:#11a66a}.rank-flat{color:#718198}
     .price-product,.rank-product{margin-top:12px;border:1px solid #dce9f7;border-radius:10px;overflow:hidden;background:#fff}
     .product-title{padding:10px 12px;background:linear-gradient(90deg,#e9f3ff,#f8fbff);color:#124d9a;font-size:13px;font-weight:800}
     .word-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
@@ -160,6 +162,7 @@
     .keyword-kpi label{display:block;color:#667085;font-size:11px}.keyword-kpi strong{display:block;margin-top:12px;color:#19334f;font-size:18px;text-align:right}
     .keyword-kpi small{position:absolute;right:8px;bottom:5px;font-size:9px}
     .keyword-top-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+    .share-line{margin-top:8px;padding-top:7px;border-top:1px dashed #c7dbef;color:#55708d;font-size:10px}
     .empty-state{padding:22px;text-align:center;color:#718198;background:#f8fbff;border-radius:9px}
     .quality-note{grid-area:quality;margin:0 4px 2px;padding:9px 12px;color:#315475;background:#dceeff;border-radius:8px;font-size:11px;text-align:center}
     .narrative p{margin:0 0 8px}
@@ -418,19 +421,19 @@
 
     <section class="panel layout-traffic">
       <h2>流量看板</h2>
-      <div class="dashboard-subtitle">按二级渠道分天展示 · 日期随趋势筛选变化</div>
+      <div class="dashboard-subtitle">数据源最后15天 · 二级渠道UV · 异常日已标注</div>
       <div id="trafficDashboard"></div>
     </section>
 
     <section class="panel layout-price">
       <h2>价格星级看板</h2>
-      <div class="dashboard-subtitle">筛选后销售TOP5组套 · 价格星级 / 到手价 / 搜索曝光量</div>
+      <div class="dashboard-subtitle">筛选后销售TOP8组套 · 数据源最后15天 · 价格星级 / 到手价 / 搜索曝光量</div>
       <div id="priceDashboard"></div>
     </section>
 
     <section class="panel layout-ranking">
       <h2>排名定位看板</h2>
-      <div class="dashboard-subtitle">筛选后销售TOP3组套 · 月至今关键词曝光变化</div>
+      <div class="dashboard-subtitle">筛选后销售TOP3组套 · 数据源最后15天关键词曝光及排名趋势</div>
       <div id="wordFilter" class="word-filter">
         <button type="button" class="active" data-category="全部词">全部词</button>
         <button type="button" data-category="品牌词">品牌词</button>
@@ -1011,45 +1014,42 @@
       rowsBetween(STATE.start, STATE.end, STATE.line, selectedSingles()).forEach(r => bucket.set(r.sku, (bucket.get(r.sku) || 0) + r.sales));
       return [...bucket.entries()].sort((a,b) => b[1] - a[1]).slice(0,n).map(x => x[0]);
     }
+    function lastAvailableDates(records, count=15) { return [...new Set(records.map(r=>r.date).filter(Boolean))].sort().slice(-count); }
+    function isDailyAnomaly(current, previous) { return !Number.isFinite(current) || (previous === 0 && current > 0) || (Number.isFinite(previous) && previous !== 0 && Math.abs(current / previous - 1) >= .5); }
+    function marked(value, abnormal, note='相邻日变化达到50%或数据异常') { return abnormal ? '<span class="anomaly-cell" title="'+esc(note)+'">'+value+'</span>' : value; }
     function updateTrafficDashboard() {
-      const rows = (DATA.traffic_records || []).filter(r => r.date >= STATE.start && r.date <= STATE.end);
-      const dates = [...new Set(rows.map(r => r.date))].sort();
+      const all = DATA.traffic_records || [], dates = lastAvailableDates(all), rows = all.filter(r => dates.includes(r.date));
       const channels = [...new Set(rows.map(r => r.channel))].sort((a,b) => rows.filter(r=>r.channel===b).reduce((s,r)=>s+r.uv,0)-rows.filter(r=>r.channel===a).reduce((s,r)=>s+r.uv,0));
       const latest = dates.at(-1), previous = latest ? iso(new Date(toDate(latest).getTime() - 86400000)) : '';
-      function block(metric, label, formatter) {
-        const body = channels.map(channel => {
-          const vals = dates.map(d => rows.filter(r=>r.channel===channel && r.date===d).reduce((s,r)=>s+(r[metric]||0),0));
-          const curRows = rows.filter(r=>r.channel===channel && r.date===latest), cur = curRows.reduce((s,r)=>s+(r[metric]||0),0);
-          const prev = rows.filter(r=>r.channel===channel && r.date===previous).reduce((s,r)=>s+(r[metric]||0),0);
-          const prior = curRows.reduce((s,r) => { const y=r[metric+'_yoy']; return s + (Number.isFinite(y) && y > -1 ? r[metric]/(1+y) : 0); },0);
-          return ['<b>'+esc(channel)+'</b>', ...vals.map(v=>formatter(v)), '<span class="'+yoyClass(yoyValue(cur,prev))+'">'+pct(yoyValue(cur,prev))+'</span>', '<span class="'+yoyClass(yoyValue(cur,prior))+'">'+pct(yoyValue(cur,prior))+'</span>'];
-        });
-        return '<div class="dashboard-subtitle">'+label+'</div>'+dashboardTable(['二级渠道',...dates.map(d=>d.slice(5)),latest+' 环比',latest+' 同比'],body);
-      }
-      $('trafficDashboard').innerHTML = block('uv','访客数 UV',num) + block('gmv','成交金额 GMV',money);
+      const body = channels.map(channel => {
+        const vals = dates.map(d => rows.filter(r=>r.channel===channel && r.date===d).reduce((s,r)=>s+(r.uv||0),0));
+        const curRows=rows.filter(r=>r.channel===channel&&r.date===latest), cur=vals.at(-1)||0, prev=rows.filter(r=>r.channel===channel&&r.date===previous).reduce((s,r)=>s+(r.uv||0),0);
+        const prior=curRows.reduce((s,r)=>{const y=r.uv_yoy;return s+(Number.isFinite(y)&&y>-1?r.uv/(1+y):0)},0);
+        return ['<b>'+esc(channel)+'</b>',...vals.map((v,i)=>marked(num(v),i>0&&isDailyAnomaly(v,vals[i-1]))),'<span class="'+yoyClass(yoyValue(cur,prev))+'">'+pct(yoyValue(cur,prev))+'</span>','<span class="'+yoyClass(yoyValue(cur,prior))+'">'+pct(yoyValue(cur,prior))+'</span>'];
+      });
+      $('trafficDashboard').innerHTML = dashboardTable(['二级渠道',...dates.map(d=>d.slice(5)),latest+' 环比',latest+' 同比'],body);
     }
     function updatePriceDashboard() {
-      const top = salesTopSkus(5), source = (DATA.price_records || []).filter(r => top.includes(r.sku) && r.date >= STATE.start && r.date <= STATE.end);
-      const dates = [...new Set(source.map(r=>r.date))].sort();
+      const top=salesTopSkus(8), all=DATA.price_records||[], dates=lastAvailableDates(all), source=all.filter(r=>top.includes(r.sku)&&dates.includes(r.date));
       const body = [];
       top.forEach(sku => {
         const own=source.filter(r=>r.sku===sku), name=own[0]?.bundle || sku;
-        const values = dates.map(d => { const day=own.filter(r=>r.date===d); if(!day.length)return '—'; const prices=day.map(r=>r.price).filter(Number.isFinite), stars=day.map(r=>r.stars).filter(Number.isFinite), exposure=day.reduce((s,r)=>s+(r.exposure||0),0); return '<div>★'+(stars.length?Math.max(...stars).toFixed(1):'—')+'</div><div>'+ (prices.length?money(Math.min(...prices)):'—') +'</div><small>曝光 '+num(exposure)+'</small>'; });
+        let previous=null;
+        const values = dates.map(d => { const day=own.filter(r=>r.date===d); if(!day.length){previous=null;return marked('—',true,'该日缺少价格星级数据')} const prices=[...new Set(day.map(r=>r.price).filter(Number.isFinite))],stars=[...new Set(day.map(r=>r.stars).filter(Number.isFinite))],exposure=day.reduce((s,r)=>s+(r.exposure||0),0), snapshot={price:prices[0],stars:stars[0],exposure}; const conflict=prices.length>1||stars.length>1, abnormal=conflict||(previous&&(isDailyAnomaly(snapshot.price,previous.price)||isDailyAnomaly(snapshot.stars,previous.stars)||isDailyAnomaly(snapshot.exposure,previous.exposure))); previous=snapshot; const priceText=prices.length>1?money(Math.min(...prices))+'–'+money(Math.max(...prices)):prices.length?money(prices[0]):'—', starText=stars.length>1?Math.min(...stars).toFixed(1)+'–'+Math.max(...stars).toFixed(1):stars.length?stars[0].toFixed(1):'—'; return marked('<div>★'+starText+'</div><div>'+priceText+'</div><small>曝光 '+num(exposure)+'</small>',abnormal,conflict?'同日价格或星级存在多个值':'相邻日价格、星级或曝光变化达到50%'); });
         body.push(['<b>'+esc(name)+'</b>',...values]);
       });
       $('priceDashboard').innerHTML = dashboardTable(['组套简称',...dates.map(d=>d.slice(5))],body);
     }
     function updateRankingDashboard() {
-      const top=salesTopSkus(3), monthStart=STATE.end.slice(0,7)+'-01';
-      const source=(DATA.ranking_records||[]).filter(r=>top.includes(r.sku)&&r.date>=monthStart&&r.date<=STATE.end&&(STATE.wordCategory==='全部词'||r.category===STATE.wordCategory));
-      const dates=[...new Set(source.map(r=>r.date))].sort(); let html='';
-      top.forEach(sku=>{ const own=source.filter(r=>r.sku===sku), name=own[0]?.bundle||sku, totals=new Map(); own.forEach(r=>totals.set(r.keyword,(totals.get(r.keyword)||0)+r.exposure)); const words=[...totals.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5); const rows=words.map(([word,total])=>['<b>'+esc(word)+'</b>',...dates.map(d=>num(own.filter(r=>r.keyword===word&&r.date===d).reduce((s,r)=>s+r.exposure,0))),num(total)]); html+='<div class="dashboard-subtitle">'+esc(name)+'</div>'+dashboardTable(['关键词',...dates.map(d=>d.slice(5)),'月累计'],rows); });
+      const top=salesTopSkus(3), all=DATA.ranking_records||[], dates=lastAvailableDates(all), source=all.filter(r=>top.includes(r.sku)&&dates.includes(r.date)&&(STATE.wordCategory==='全部词'||r.category===STATE.wordCategory)); let html='';
+      top.forEach(sku=>{ const own=source.filter(r=>r.sku===sku), name=own[0]?.bundle||sku, totals=new Map(); own.forEach(r=>totals.set(r.keyword,(totals.get(r.keyword)||0)+r.exposure)); const words=[...totals.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5), dayRanks={}; dates.forEach(d=>{const ranked=words.map(([word])=>[word,own.filter(r=>r.keyword===word&&r.date===d).reduce((s,r)=>s+r.exposure,0)]).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'zh-Hans-CN'));dayRanks[d]=new Map(ranked.map((x,i)=>[x[0],i+1]));}); const rows=words.map(([word,total])=>{let prevValue=null,prevRank=null;const cells=dates.map(d=>{const value=own.filter(r=>r.keyword===word&&r.date===d).reduce((s,r)=>s+r.exposure,0),rank=dayRanks[d].get(word),trend=prevRank===null?'→':rank<prevRank?'↑':rank>prevRank?'↓':'→',cls=trend==='↑'?'rank-up':trend==='↓'?'rank-down':'rank-flat',abnormal=prevValue!==null&&isDailyAnomaly(value,prevValue),cell=marked(num(value)+'<span class="rank-meta '+cls+'">#'+rank+' '+trend+'</span>',abnormal);prevValue=value;prevRank=rank;return cell;});return ['<b>'+esc(word)+'</b>',...cells,num(total)];}); html+='<div class="dashboard-subtitle">'+esc(name)+'</div>'+dashboardTable(['关键词',...dates.map(d=>d.slice(5)),'15日累计'],rows); });
       $('rankingDashboard').innerHTML=html||'<div class="empty-state">当前筛选范围暂无可展示的关键词排名数据</div>';
     }
     function updateKeywordDashboard() {
       const cats=['品牌词','品类词','竞品词'], source=(DATA.search_keyword_records||[]).filter(r=>cats.includes(r.category));
       function metric(cat,key){const own=source.filter(r=>r.category===cat),cur=own.reduce((s,r)=>s+(r[key]||0),0),prior=own.reduce((s,r)=>{const y=r[key+'_yoy'];return s+(Number.isFinite(y)&&y>-1?r[key]/(1+y):0)},0);return [cur,yoyValue(cur,prior)];}
-      $('keywordOverview').innerHTML=cats.map(cat=>{const u=metric(cat,'uv'),b=metric(cat,'buyers'),g=metric(cat,'gmv');return '<div class="keyword-card"><b>'+cat+'</b><div>UV '+num(u[0])+' <small class="'+yoyClass(u[1])+'">同比 '+pct(u[1])+'</small></div><div>成交人数 '+num(b[0])+' <small class="'+yoyClass(b[1])+'">同比 '+pct(b[1])+'</small></div><div>GMV '+money(g[0])+' <small class="'+yoyClass(g[1])+'">同比 '+pct(g[1])+'</small></div></div>';}).join('');
+      const totalUv=source.reduce((s,r)=>s+(r.uv||0),0),totalBuyers=source.reduce((s,r)=>s+(r.buyers||0),0);
+      $('keywordOverview').innerHTML=cats.map(cat=>{const u=metric(cat,'uv'),b=metric(cat,'buyers'),g=metric(cat,'gmv');return '<div class="keyword-card"><b>'+cat+'</b><div>UV '+num(u[0])+' <small class="'+yoyClass(u[1])+'">同比 '+pct(u[1])+'</small></div><div>成交人数 '+num(b[0])+' <small class="'+yoyClass(b[1])+'">同比 '+pct(b[1])+'</small></div><div>GMV '+money(g[0])+' <small class="'+yoyClass(g[1])+'">同比 '+pct(g[1])+'</small></div><div class="share-line">UV占比 <b>'+pct(u[0]/totalUv)+'</b> · 成交占比 <b>'+pct(b[0]/totalBuyers)+'</b></div></div>';}).join('');
       $('keywordTopGrid').innerHTML=cats.map(cat=>{const own=source.filter(r=>r.category===cat).sort((a,b)=>b.gmv-a.gmv||b.uv-a.uv).slice(0,10);return '<div><div class="dashboard-subtitle">TOP10 '+cat+'</div>'+dashboardTable(['关键词','UV','成交人数','GMV'],own.map(r=>['<b>'+esc(r.keyword)+'</b>',num(r.uv),num(r.buyers),money(r.gmv)]))+'</div>';}).join('');
     }
     function updateExtraDashboards() { updateTrafficDashboard(); updatePriceDashboard(); updateRankingDashboard(); updateKeywordDashboard(); }
