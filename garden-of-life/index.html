@@ -124,6 +124,8 @@
     .chart-box.top10 canvas{height:320px}
     .help{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
     .analysis{margin-top:14px;background:#e1f0ff;border-left:4px solid #74b9ff;border-radius:7px;padding:13px 15px;color:#40536b;font-size:13px;line-height:1.7}
+    .analysis-product{font-weight:900;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:2px}
+    .analysis-product.growth{color:var(--red)}.analysis-product.decline{color:var(--green)}
     .summary-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:13px}
     .summary-row.four{grid-template-columns:repeat(4,minmax(0,1fr))}
     .summary-card{position:relative;min-width:0;min-height:110px;padding:14px;border:1px solid #dce9f7;border-radius:12px;background:linear-gradient(145deg,#fff 0%,#f8fbff 100%);box-shadow:0 5px 14px #075fe414;overflow:hidden}
@@ -910,6 +912,7 @@
     function metricSum(rows, key) { return rows.reduce((s,r)=>s+(r[key]||0),0); }
     function bundleMap(rows, key) { const m=new Map();rows.forEach(r=>m.set(r.bundle,(m.get(r.bundle)||0)+(r[key]||0)));return m; }
     function groupMetricMap(rows, groupKey, metricKey) { const m=new Map();rows.forEach(r=>{const name=r[groupKey]||'未配置';m.set(name,(m.get(name)||0)+(r[metricKey]||0));});return m; }
+    function trendProduct(name, direction) { return '<strong class="analysis-product '+(direction>=0?'growth':'decline')+'">'+esc(name)+'</strong>'; }
     function abnormalDays(currentRows, priorRows, valueFn) {
       const dates=[...new Set(currentRows.map(r=>r.date))].sort(), out=[];
       dates.forEach((date,i)=>{const day=currentRows.filter(r=>r.date===date),yoyDay=priorRows.filter(r=>r.date===shiftYear(date,-1)),prevDay=i?currentRows.filter(r=>r.date===dates[i-1]):[],cur=valueFn(day),yoyBase=valueFn(yoyDay),momBase=valueFn(prevDay),yoy=yoyBase?cur/yoyBase-1:NaN,mom=momBase?cur/momBase-1:NaN;let mode='',change=NaN,baseRows=[];if(Number.isFinite(yoy)&&Math.abs(yoy)>=.5){mode='同比';change=yoy;baseRows=yoyDay}if(Number.isFinite(mom)&&Math.abs(mom)>=.5&&(!Number.isFinite(change)||Math.abs(mom)>Math.abs(change))){mode='环比';change=mom;baseRows=prevDay}if(mode)out.push({date,day,yoyDay,baseRows,cur,change,mode});});
@@ -917,16 +920,16 @@
     }
     function baseMetricNarrative(label,key,currentRows,priorRows,formatter) {
       const events=abnormalDays(currentRows,priorRows,rs=>metricSum(rs,key));if(!events.length)return label+'未发现同比或环比绝对变化达到50%的日期。';
-      return events.map(e=>{const curMap=bundleMap(e.day,key),baseMap=bundleMap(e.baseRows,key),direction=Math.sign(e.change),drivers=[...new Set([...curMap.keys(),...baseMap.keys()])].map(name=>({name,delta:(curMap.get(name)||0)-(baseMap.get(name)||0),current:curMap.get(name)||0,base:baseMap.get(name)||0})).filter(x=>Math.sign(x.delta)===direction).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3),driverCurrent=drivers.reduce((s,x)=>s+x.current,0),driverBase=drivers.reduce((s,x)=>s+x.base,0),share=e.cur?driverCurrent/e.cur:NaN,adjusted=e.cur-driverCurrent+driverBase,yoyTotal=metricSum(e.yoyDay,key),adjustedYoy=yoyValue(adjusted,yoyTotal),names=drivers.map(x=>x.name+'（'+(x.delta>=0?'+':'')+formatter(x.delta)+'）').join('、')||'暂无可识别组套';return e.date+' '+e.mode+(e.change>=0?'提升 ':'下滑 ')+pct(Math.abs(e.change))+'，主要由'+names+'驱动；这些组套占当天'+label+pct(share)+'。按比较基准替换异常波动后，当天'+label+'约为'+formatter(adjusted)+'，同比'+pct(adjustedYoy)+'。';}).join(' ');
+      return events.map(e=>{const curMap=bundleMap(e.day,key),baseMap=bundleMap(e.baseRows,key),direction=Math.sign(e.change),drivers=[...new Set([...curMap.keys(),...baseMap.keys()])].map(name=>({name,delta:(curMap.get(name)||0)-(baseMap.get(name)||0),current:curMap.get(name)||0,base:baseMap.get(name)||0})).filter(x=>Math.sign(x.delta)===direction).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3),driverCurrent=drivers.reduce((s,x)=>s+x.current,0),driverBase=drivers.reduce((s,x)=>s+x.base,0),share=e.cur?driverCurrent/e.cur:NaN,adjusted=e.cur-driverCurrent+driverBase,yoyTotal=metricSum(e.yoyDay,key),adjustedYoy=yoyValue(adjusted,yoyTotal),names=drivers.map(x=>trendProduct(x.name,direction)+'（'+(x.delta>=0?'+':'')+formatter(x.delta)+'）').join('、')||'暂无可识别组套';return e.date+' '+e.mode+(e.change>=0?'提升 ':'下滑 ')+pct(Math.abs(e.change))+'，主要由'+names+'驱动；这些组套占当天'+label+pct(share)+'。按比较基准替换异常波动后，当天'+label+'约为'+formatter(adjusted)+'，同比'+pct(adjustedYoy)+'。';}).join(' ');
     }
     function ratioNarrative(label,currentRows,priorRows,numeratorKey,denominatorKey,formatter,removeDrivers=false) {
       const valueFn=rs=>{const d=metricSum(rs,denominatorKey);return d?metricSum(rs,numeratorKey)/d:NaN;},events=abnormalDays(currentRows,priorRows,valueFn);if(!events.length)return label+'未发现同比或环比绝对变化达到50%的日期。';
-      return events.map(e=>{const baseRatio=valueFn(e.baseRows),names=[...new Set(e.day.map(r=>r.bundle))],drivers=names.map(name=>{const rows=e.day.filter(r=>r.bundle===name),n=metricSum(rows,numeratorKey),d=metricSum(rows,denominatorKey),impact=n-d*baseRatio;return {name,n,d,impact};}).filter(x=>Math.sign(x.impact)===Math.sign(e.change)).sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact)).slice(0,3),dn=drivers.reduce((s,x)=>s+x.n,0),dd=drivers.reduce((s,x)=>s+x.d,0),totalN=metricSum(e.day,numeratorKey),totalD=metricSum(e.day,denominatorKey),adjusted=totalD-dd?(totalN-dn)/(totalD-dd):NaN,yoyRows=e.yoyDay,yoyNames=new Set(drivers.map(x=>x.name)),yoyRemain=yoyRows.filter(r=>!yoyNames.has(r.bundle)),adjustedPrior=valueFn(yoyRemain),adjustedYoy=yoyValue(adjusted,adjustedPrior);return e.date+' '+label+e.mode+(e.change>=0?'提升 ':'下滑 ')+pct(Math.abs(e.change))+'，主要组套为'+(drivers.map(x=>x.name).join('、')||'暂无可识别组套')+'；剔除这些组套后，当天'+label+'约为'+formatter(adjusted)+'，同比'+pct(adjustedYoy)+'。';}).join(' ');
+      return events.map(e=>{const baseRatio=valueFn(e.baseRows),names=[...new Set(e.day.map(r=>r.bundle))],drivers=names.map(name=>{const rows=e.day.filter(r=>r.bundle===name),n=metricSum(rows,numeratorKey),d=metricSum(rows,denominatorKey),impact=n-d*baseRatio;return {name,n,d,impact};}).filter(x=>Math.sign(x.impact)===Math.sign(e.change)).sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact)).slice(0,3),dn=drivers.reduce((s,x)=>s+x.n,0),dd=drivers.reduce((s,x)=>s+x.d,0),totalN=metricSum(e.day,numeratorKey),totalD=metricSum(e.day,denominatorKey),adjusted=totalD-dd?(totalN-dn)/(totalD-dd):NaN,yoyRows=e.yoyDay,yoyNames=new Set(drivers.map(x=>x.name)),yoyRemain=yoyRows.filter(r=>!yoyNames.has(r.bundle)),adjustedPrior=valueFn(yoyRemain),adjustedYoy=yoyValue(adjusted,adjustedPrior),direction=Math.sign(e.change);return e.date+' '+label+e.mode+(e.change>=0?'提升 ':'下滑 ')+pct(Math.abs(e.change))+'，主要组套为'+(drivers.map(x=>trendProduct(x.name,direction)).join('、')||'暂无可识别组套')+'；剔除这些组套后，当天'+label+'约为'+formatter(adjusted)+'，同比'+pct(adjustedYoy)+'。';}).join(' ');
     }
     function mixNarrative(currentRows,priorRows) {
       const curTotal=metricSum(currentRows,'sales'),prevTotal=metricSum(priorRows,'sales'),curSingles=groupMetricMap(currentRows,'single','sales'),prevSingles=groupMetricMap(priorRows,'single','sales'),changes=[...new Set([...curSingles.keys(),...prevSingles.keys()])].filter(x=>x!=='未配置').map(name=>({name,delta:(curSingles.get(name)||0)/(curTotal||1)-(prevSingles.get(name)||0)/(prevTotal||1)})),up=[...changes].sort((a,b)=>b.delta-a.delta)[0],down=[...changes].sort((a,b)=>a.delta-b.delta)[0];
-      function bundleDrivers(single,direction){const cur=bundleMap(currentRows.filter(r=>r.single===single),'sales'),prev=bundleMap(priorRows.filter(r=>r.single===single),'sales');return [...new Set([...cur.keys(),...prev.keys()])].map(name=>({name,delta:(cur.get(name)||0)-(prev.get(name)||0)})).filter(x=>direction>0?x.delta>0:x.delta<0).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3).map(x=>x.name+'（'+(x.delta>=0?'+':'')+money(x.delta)+'）').join('、')||'暂无明确组套';}
-      return '单品结构中，'+(up?up.name+'占比提升最快，提升'+(up.delta*100).toFixed(1)+'个百分点，由'+bundleDrivers(up.name,1)+'带动':'暂无占比提升单品')+'；'+(down?down.name+'占比下滑最明显，下滑'+Math.abs(down.delta*100).toFixed(1)+'个百分点，主要由'+bundleDrivers(down.name,-1)+'拖累':'暂无占比下滑单品')+'。';
+      function bundleDrivers(single,direction){const cur=bundleMap(currentRows.filter(r=>r.single===single),'sales'),prev=bundleMap(priorRows.filter(r=>r.single===single),'sales');return [...new Set([...cur.keys(),...prev.keys()])].map(name=>({name,delta:(cur.get(name)||0)-(prev.get(name)||0)})).filter(x=>direction>0?x.delta>0:x.delta<0).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3).map(x=>trendProduct(x.name,direction)+'（'+(x.delta>=0?'+':'')+money(x.delta)+'）').join('、')||'暂无明确组套';}
+      return '单品结构中，'+(up?trendProduct(up.name,1)+'占比提升最快，提升'+(up.delta*100).toFixed(1)+'个百分点，由'+bundleDrivers(up.name,1)+'带动':'暂无占比提升单品')+'；'+(down?trendProduct(down.name,-1)+'占比下滑最明显，下滑'+Math.abs(down.delta*100).toFixed(1)+'个百分点，主要由'+bundleDrivers(down.name,-1)+'拖累':'暂无占比下滑单品')+'。';
     }
     function updateMetrics() {
       const line = STATE.line;
@@ -1031,9 +1034,9 @@
       const bundleEntries = comparativeEntries(currentRows.filter(r => r.bundle !== '未配置'), priorRows.filter(r => r.bundle !== '未配置'), 'bundle', 10);
       drawPie($('pieChart'), singleEntries);
       drawTopBars($('topBundleChart'), bundleEntries);
-      $('gmvAnalysis').textContent = baseMetricNarrative('GMV','sales',currentRows,priorRows,money);
-      $('visitorsAnalysis').textContent = baseMetricNarrative('访客数','visitors',currentRows,priorRows,num)+' '+ratioNarrative('转化率',currentRows,priorRows,'buyers','visitors',pct);
-      $('buyersAnalysis').textContent = ratioNarrative('客单价',currentRows,priorRows,'sales','buyers',money,true);
+      $('gmvAnalysis').innerHTML = baseMetricNarrative('GMV','sales',currentRows,priorRows,money);
+      $('visitorsAnalysis').innerHTML = baseMetricNarrative('访客数','visitors',currentRows,priorRows,num)+' '+ratioNarrative('转化率',currentRows,priorRows,'buyers','visitors',pct);
+      $('buyersAnalysis').innerHTML = ratioNarrative('客单价',currentRows,priorRows,'sales','buyers',money,true);
       const curTotals = totals(currentRows), prevTotals = totals(priorRows);
       const curConv = curTotals.visitors ? curTotals.buyers / curTotals.visitors : NaN;
       const prevConv = prevTotals.visitors ? prevTotals.buyers / prevTotals.visitors : NaN;
@@ -1049,7 +1052,7 @@
       $('buyerSummaryCurrent').textContent = num(curTotals.buyers); $('buyerSummaryPrior').textContent = num(prevTotals.buyers);
       $('aovSummaryCurrent').textContent = money(curAov); $('aovSummaryPrior').textContent = money(prevAov);
       const mappedSales = singleEntries.reduce((sum,x)=>sum+x.current,0), topSingle = singleEntries[0], topBundle = bundleEntries[0];
-      $('mixAnalysis').textContent = mixNarrative(currentRows.filter(r=>r.single!=='未配置'),priorRows.filter(r=>r.single!=='未配置'));
+      $('mixAnalysis').innerHTML = mixNarrative(currentRows.filter(r=>r.single!=='未配置'),priorRows.filter(r=>r.single!=='未配置'));
     }
     function esc(value) {
       return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
